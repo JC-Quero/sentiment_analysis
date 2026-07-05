@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>FinSent Terminal — Análisis de Sentimiento Financiero</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0d10;
+    --panel: #12161b;
+    --panel-2: #171c22;
+    --border: #232a33;
+    --text: #dce3ea;
+    --muted: #6e7885;
+    --pos: #3ddc97;
+    --pos-dim: #3ddc9722;
+    --neg: #ff5c7a;
+    --neg-dim: #ff5c7a22;
+    --neu: #ffc24b;
+    --neu-dim: #ffc24b22;
+    --brand: #7c9cff;
+    --brand-dim: #7c9cff22;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: radial-gradient(1200px 600px at 15% -10%, #131a24 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:'IBM Plex Mono', monospace; }
+  .display{ font-family:'Space Grotesk', sans-serif; }
+
+  /* ---------- Ticker ---------- */
+  .ticker-wrap{
+    overflow:hidden;
+    border-bottom:1px solid var(--border);
+    background: var(--panel);
+    white-space:nowrap;
+    position:relative;
+  }
+  .ticker-wrap::before, .ticker-wrap::after{
+    content:"";
+    position:absolute; top:0; bottom:0; width:40px; z-index:2;
+  }
+  .ticker-wrap::before{ left:0; background:linear-gradient(90deg, var(--panel), transparent); }
+  .ticker-wrap::after{ right:0; background:linear-gradient(270deg, var(--panel), transparent); }
+  .ticker-track{
+    display:inline-flex;
+    gap:36px;
+    padding:10px 0;
+    animation: scroll 38s linear infinite;
+  }
+  .ticker-wrap:hover .ticker-track{ animation-play-state: paused; }
+  @keyframes scroll{
+    from{ transform: translateX(0); }
+    to{ transform: translateX(-50%); }
+  }
+  .tick{
+    font-size:12.5px;
+    color: var(--muted);
+    cursor:pointer;
+    padding:2px 6px;
+    border-radius:4px;
+    transition: color .15s, background .15s;
+  }
+  .tick:hover{ color:var(--text); background:var(--panel-2); }
+  .tick b{ font-weight:600; }
+  .tick.p b{ color:var(--pos); }
+  .tick.n b{ color:var(--neg); }
+  .tick.u b{ color:var(--neu); }
+
+  /* ---------- Layout ---------- */
+  .wrap{ max-width:920px; margin:0 auto; padding: 48px 24px 80px; }
+  .eyebrow{
+    display:flex; align-items:center; gap:8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px; letter-spacing:.12em; text-transform:uppercase;
+    color: var(--brand); margin-bottom:14px;
+  }
+  .eyebrow .dot{ width:7px; height:7px; border-radius:50%; background:var(--pos); box-shadow:0 0 8px var(--pos); animation:pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size: clamp(28px, 4.4vw, 42px);
+    line-height:1.08;
+    margin:0 0 14px;
+    letter-spacing:-0.01em;
+  }
+  h1 span{ color: var(--brand); }
+  .lede{
+    color: var(--muted);
+    font-size:15.5px;
+    line-height:1.6;
+    max-width:640px;
+    margin:0 0 34px;
+  }
+  .lede code{ font-family:'IBM Plex Mono',monospace; color:var(--text); background:var(--panel-2); padding:1px 6px; border-radius:4px; font-size:13px; }
+
+  /* ---------- Panel ---------- */
+  .panel{
+    background: var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:22px;
+    margin-bottom:22px;
+  }
+  .panel-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:10px; display:block;
+  }
+  textarea{
+    width:100%;
+    min-height:88px;
+    background: var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    color:var(--text);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14.5px;
+    padding:14px 16px;
+    resize:vertical;
+    line-height:1.55;
+  }
+  textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-dim); }
+  textarea::placeholder{ color:#4a5563; }
+
+  .row{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; flex-wrap:wrap; }
+  .hint{ font-size:12.5px; color:var(--muted); }
+  button.analyze{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:14.5px;
+    background: var(--brand);
+    color:#0a0d10;
+    border:none;
+    padding:11px 22px;
+    border-radius:9px;
+    cursor:pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  button.analyze:hover{ transform: translateY(-1px); box-shadow:0 6px 18px var(--brand-dim); }
+  button.analyze:active{ transform: translateY(0); }
+  button.analyze:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+  /* ---------- Results ---------- */
+  #results{ display:none; }
+  .verdict{
+    display:flex; align-items:center; gap:14px;
+    padding:18px 20px;
+    border-radius:12px;
+    margin-bottom:18px;
+    border:1px solid var(--border);
+  }
+  .verdict-badge{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size:19px;
+    padding:6px 16px; border-radius:8px;
+  }
+  .verdict-sub{ color:var(--muted); font-size:13px; }
+  .verdict.positive{ background:var(--pos-dim); }
+  .verdict.positive .verdict-badge{ background:var(--pos); color:#06231a; }
+  .verdict.negative{ background:var(--neg-dim); }
+  .verdict.negative .verdict-badge{ background:var(--neg); color:#2a0510; }
+  .verdict.neutral{ background:var(--neu-dim); }
+  .verdict.neutral .verdict-badge{ background:var(--neu); color:#2a1c02; }
+
+  .bars{ display:flex; flex-direction:column; gap:10px; margin-bottom:22px; }
+  .bar-row{ display:grid; grid-template-columns:78px 1fr 52px; align-items:center; gap:12px; }
+  .bar-label{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
+  .bar-track{ height:9px; background:var(--panel-2); border-radius:5px; overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:5px; width:0%; transition:width .5s cubic-bezier(.2,.8,.2,1); }
+  .bar-fill.pos{ background:var(--pos); }
+  .bar-fill.neg{ background:var(--neg); }
+  .bar-fill.neu{ background:var(--neu); }
+  .bar-pct{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; text-align:right; color:var(--text); }
+
+  .highlight-box{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    line-height:1.8;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px 18px;
+  }
+  .highlight-box .tag-pos{ background:var(--pos-dim); color:var(--pos); padding:1px 5px; border-radius:4px; }
+  .highlight-box .tag-neg{ background:var(--neg-dim); color:var(--neg); padding:1px 5px; border-radius:4px; }
+  .highlight-box .tag-flip{ background:var(--brand-dim); color:var(--brand); padding:1px 5px; border-radius:4px; }
+  .legend{ display:flex; gap:16px; margin-top:10px; font-size:12px; color:var(--muted); flex-wrap:wrap; }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend i{ width:8px; height:8px; border-radius:2px; display:inline-block; }
+
+  /* ---------- Footer / pipeline note ---------- */
+  .footnote{
+    border-top:1px solid var(--border);
+    margin-top:36px;
+    padding-top:22px;
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.7;
+  }
+  .footnote b{ color:var(--text); }
+  .pipeline{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+    margin:14px 0 4px;
+  }
+  .pipeline .step{ background:var(--panel-2); border:1px solid var(--border); padding:5px 10px; border-radius:6px; color:var(--text); }
+  .pipeline .arrow{ color:var(--muted); }
+
+  @media (prefers-reduced-motion: reduce){
+    .ticker-track{ animation: none; }
+    .eyebrow .dot{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ticker-wrap">
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<div class="wrap">
+  <div class="eyebrow"><span class="dot"></span> MODELO EN VIVO · CLIENT-SIDE</div>
+  <h1>Fin<span>Sent</span> Terminal</h1>
+  <p class="lede">
+    Escribí un titular financiero y mirá cómo un clasificador de sentimiento lo interpreta en tiempo real.
+    Esta demo corre 100% en tu navegador — es una reimplementación en JavaScript de la lógica de
+    <code>TF-IDF + Regresión Logística</code> entrenada en Python sobre el Financial PhraseBank.
+  </p>
+
+  <div class="panel">
+    <span class="panel-label">Titular a analizar</span>
+    <textarea id="input" placeholder="Ej: Inflation rates exceed expectations, driving tech sector stocks down."></textarea>
+    <div class="row">
+      <span class="hint">Tocá un titular del ticker de arriba, o escribí el tuyo.</span>
+      <button class="analyze" onclick="analizar()">Analizar sentimiento →</button>
+    </div>
+  </div>
+
+  <div id="results">
+    <div class="verdict" id="verdictBox">
+      <div class="verdict-badge" id="verdictBadge">—</div>
+      <div class="verdict-sub" id="verdictSub">—</div>
+    </div>
+
+    <div class="bars">
+      <div class="bar-row">
+        <span class="bar-label">POSITIVE</span>
+        <div class="bar-track"><div class="bar-fill pos" id="barPos"></div></div>
+        <span class="bar-pct" id="pctPos">0%</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">NEUTRAL</span>
+        <div class="bar-track"><div class="bar-fill neu" id="barNeu"></div></div>
+        <span class="bar-pct" id="pctNeu">0%</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">NEGATIVE</span>
+        <div class="bar-track"><div class="bar-fill neg" id="barNeg"></div></div>
+        <span class="bar-pct" id="pctNeg">0%</span>
+      </div>
+    </div>
+
+    <span class="panel-label">Palabras que influyeron en la predicción</span>
+    <div class="highlight-box" id="highlightBox"></div>
+    <div class="legend">
+      <span><i style="background:var(--pos)"></i> impulsa positivo</span>
+      <span><i style="background:var(--neg)"></i> impulsa negativo</span>
+      <span><i style="background:var(--brand)"></i> negación (invierte el sentido)</span>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <b>Cómo se relaciona con el modelo real:</b> el pipeline de producción (en Python) limpia el texto,
+    lematiza, vectoriza con TF-IDF sobre un vocabulario de 5000 términos y clasifica con Regresión Logística
+    entrenada sobre miles de titulares etiquetados.
+    <div class="pipeline">
+      <span class="step">texto crudo</span><span class="arrow">→</span>
+      <span class="step">limpieza + lematización</span><span class="arrow">→</span>
+      <span class="step">TF-IDF (5000 features)</span><span class="arrow">→</span>
+      <span class="step">Logistic Regression</span><span class="arrow">→</span>
+      <span class="step">positive / neutral / negative</span>
+    </div>
+    Esta versión del navegador usa un léxico financiero ponderado en vez del modelo entrenado
+    (para poder correr sin backend), pero respeta la misma idea: puntuar palabras clave del dominio
+    financiero y, a diferencia del script original, <b>trata la negación como un caso especial</b>
+    en vez de simplemente eliminarla como stopword — algo que vale la pena sumar también a la versión en Python.
+  </div>
+</div>
+
+<script>
+// ---------- Léxico financiero ponderado ----------
+const LEXICON = {
+  // positivos
+  "surge": 3, "surged": 3, "soar": 3, "soared": 3, "soars": 3, "jump": 2.5, "jumped": 2.5,
+  "rally": 2.5, "rallied": 2.5, "gain": 2, "gains": 2, "gained": 2, "rise": 2, "rose": 2, "rising": 2,
+  "growth": 2, "grew": 2, "grow": 2, "profit": 2.2, "profits": 2.2, "profitable": 2.2,
+  "record": 1.8, "beat": 2.3, "beats": 2.3, "exceed": 2.3, "exceeds": 2.3, "exceeded": 2.3,
+  "strong": 1.8, "robust": 1.8, "boost": 1.8, "boosted": 1.8, "expansion": 1.7, "upgrade": 2,
+  "upgraded": 2, "outperform": 2.2, "positive": 2, "optimistic": 1.8, "recovery": 1.6,
+  "improve": 1.5, "improved": 1.5, "improving": 1.5, "bullish": 2.4, "high": 1.2, "higher": 1.4,
+  "success": 1.8, "successful": 1.8, "win": 1.6, "won": 1.6, "deal": 1.2, "agreement": 1.2,
+
+  // negativos
+  "plunge": 3, "plunged": 3, "crash": 3, "crashed": 3, "collapse": 3, "collapsed": 3,
+  "drop": 2.3, "dropped": 2.3, "fall": 2, "fell": 2, "falling": 2, "decline": 2.2, "declined": 2.2,
+  "loss": 2.3, "losses": 2.3, "lost": 2, "down": 1.5, "lower": 1.4, "cut": 1.8, "cuts": 1.8,
+  "layoff": 2.5, "layoffs": 2.5, "bankruptcy": 3, "bankrupt": 3, "debt": 1.6, "lawsuit": 2,
+  "fraud": 2.8, "scandal": 2.6, "weak": 1.8, "weaker": 1.8, "miss": 2, "missed": 2, "misses": 2,
+  "downgrade": 2.2, "downgraded": 2.2, "recession": 2.6, "inflation": 1.5, "slump": 2.4,
+  "risk": 1.3, "risks": 1.3, "concern": 1.4, "concerns": 1.4, "warning": 1.8, "bearish": 2.4,
+  "volatile": 1.5, "volatility": 1.5, "negative": 2, "underperform": 2.2, "layoff": 2.5,
+  "delay": 1.4, "delayed": 1.4, "problem": 1.5, "problems": 1.5, "investigation": 1.8
+};
+
+const NEGATORS = new Set(["not","no","never","without","fails","failed","fail","lacking","lack","hardly","unable"]);
+
+function tokenize(text){
+  return text.toLowerCase().match(/[a-zà-ÿ']+/g) || [];
+}
+
+function scoreText(text){
+  const tokens = tokenize(text);
+  let posScore = 0, negScore = 0;
+  const tagged = [];
+  for(let i=0;i<tokens.length;i++){
+    const w = tokens[i];
+    let weight = LEXICON[w];
+    let negatedBy = null;
+    // mirar hasta 3 palabras atrás por un negador
+    for(let j=Math.max(0,i-3); j<i; j++){
+      if(NEGATORS.has(tokens[j])){ negatedBy = tokens[j]; }
+    }
+    if(weight){
+      let effective = weight;
+      let cls = weight > 0 ? "pos" : "neg";
+      if(negatedBy){ effective = -weight; cls = "flip"; }
+      if(effective > 0) posScore += effective; else negScore += Math.abs(effective);
+      tagged.push({w, cls});
+    } else if(NEGATORS.has(w)){
+      tagged.push({w, cls:"flip"});
+    } else {
+      tagged.push({w, cls:null});
+    }
+  }
+  return {posScore, negScore, tagged};
+}
+
+function softmaxProbs(posScore, negScore){
+  // neutral score baseline proporcional a lo "plano" que es el texto
+  const total = posScore + negScore;
+  const neuScore = total === 0 ? 3 : Math.max(0.6, 2.4 - total*0.25);
+  const scores = [posScore, neuScore, negScore];
+  const exps = scores.map(s => Math.exp(s));
+  const sum = exps.reduce((a,b)=>a+b,0);
+  return exps.map(e => e/sum); // [pos, neu, neg]
+}
+
+async function analizar(){
+  const text = document.getElementById('input').value.trim();
+  if(!text) return;
+
+  // 1. Mostrar estado de carga (opcional pero queda bien)
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('verdictBadge').textContent = 'PENSANDO...';
+  document.getElementById('verdictSub').textContent = 'Consultando al modelo de Machine Learning...';
+
+  try {
+    // 2. Enviar el texto a tu script de Python
+    const respuesta = await fetch('/predecir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto: text })
+    });
+
+    const datos = await respuesta.json();
+
+    // 3. Actualizar la interfaz con los resultados de Python
+    document.getElementById('barPos').style.width = datos.prob_pos + '%';
+    document.getElementById('barNeu').style.width = datos.prob_neu + '%';
+    document.getElementById('barNeg').style.width = datos.prob_neg + '%';
+    
+    document.getElementById('pctPos').textContent = datos.prob_pos + '%';
+    document.getElementById('pctNeu').textContent = datos.prob_neu + '%';
+    document.getElementById('pctNeg').textContent = datos.prob_neg + '%';
+
+    const verdictBox = document.getElementById('verdictBox');
+    const badge = document.getElementById('verdictBadge');
+    const sub = document.getElementById('verdictSub');
+    
+    verdictBox.className = 'verdict';
+    if(datos.prediccion === 'POSITIVE'){ 
+        verdictBox.classList.add('positive'); 
+        sub.textContent = `Confianza del modelo: ${datos.prob_pos}%`; 
+    } else if(datos.prediccion === 'NEGATIVE'){ 
+        verdictBox.classList.add('negative'); 
+        sub.textContent = `Confianza del modelo: ${datos.prob_neg}%`; 
+    } else { 
+        verdictBox.classList.add('neutral'); 
+        sub.textContent = `Confianza del modelo: ${datos.prob_neu}%`; 
+    }
+    
+    badge.textContent = datos.prediccion;
+    
+    // (Opcional) Borramos la caja de palabras resaltadas ya que Python no nos la devuelve en esta versión básica
+    document.getElementById('highlightBox').style.display = 'none';
+    document.querySelector('.legend').style.display = 'none';
+
+  } catch (error) {
+    console.error("Error al conectar con Python:", error);
+    document.getElementById('verdictBadge').textContent = 'ERROR';
+    document.getElementById('verdictSub').textContent = 'No se pudo conectar con el servidor local.';
+  }
+}
+
+// ---------- Ticker de ejemplos ----------
+const EJEMPLOS = [
+  {t:"Company profits surged 24% after record quarterly earnings.", c:"p"},
+  {t:"Shares plunged following news of the accounting fraud investigation.", c:"n"},
+  {t:"The board announced no major changes to its dividend policy.", c:"u"},
+  {t:"Inflation rates exceed expectations, driving tech sector stocks down.", c:"n"},
+  {t:"The merger deal boosted investor confidence across the sector.", c:"p"},
+  {t:"Layoffs announced as the company struggles with mounting debt.", c:"n"},
+  {t:"Quarterly revenue was in line with analyst forecasts.", c:"u"},
+  {t:"The company failed to meet its growth targets this quarter.", c:"n"},
+  {t:"Strong demand and robust exports lifted the manufacturing index.", c:"p"},
+];
+
+function buildTicker(){
+  const track = document.getElementById('tickerTrack');
+  const items = [...EJEMPLOS, ...EJEMPLOS]; // duplicado para loop continuo
+  track.innerHTML = items.map(e => {
+    const tagLabel = e.c === 'p' ? '▲ POS' : e.c === 'n' ? '▼ NEG' : '● NEU';
+    return `<span class="tick ${e.c} mono" onclick="loadExample(this)" data-text="${e.t.replace(/"/g,'&quot;')}"><b>${tagLabel}</b> ${e.t}</span>`;
+  }).join('');
+}
+
+function loadExample(el){
+  document.getElementById('input').value = el.getAttribute('data-text');
+  analizar();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+buildTicker();
+</script>
+
+</body>
+</html>

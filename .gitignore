@@ -1,0 +1,13 @@
+# Entornos virtuales
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+env/
+
+# Configuración del editor
+.vscode/
+
+# Datasets pesados
+financial_data.csv
